@@ -62,20 +62,6 @@ Just double-click `atlasforge.html` — it works as a standalone file too!
 
 ---
 
-## 🌍 Deploy on GitHub Pages
-
-To get a **public URL** for your visitors:
-
-1. Push this repo to GitHub
-2. Go to **Settings → Pages**
-3. Set source to **`main` branch / root (`/`)**
-4. Your live URL will be:
-   ```
-   https://YOUR-USERNAME.github.io/AtlasForge/atlasforge.html
-   ```
-
----
-
 ## 🛠️ Tech Stack
 
 - **Three.js r128** — 3D rendering engine (WebGL 2.0)
