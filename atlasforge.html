@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AtlasForge — Cloud Engineering Platform</title>
+<meta name="description" content="Browser-based parametric CAD, robotics simulation, and AI-assisted engineering platform">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0f;--surface:#12121a;--surface2:#1a1a26;--surface3:#22222e;--border:#2a2a3a;
+  --text:#e4e4ef;--text2:#8888a0;--accent:#6366f1;--accent2:#818cf8;
+  --accent-g:linear-gradient(135deg,#6366f1,#8b5cf6,#a855f7);
+  --success:#22c55e;--warn:#f59e0b;--danger:#ef4444;--cyan:#06b6d4;
+  --radius:8px;--glow:0 0 20px rgba(99,102,241,.15);
+  --topbar-h:42px;--toolbar-h:60px;--bottom-h:180px;--status-h:24px;
+  --work-h:calc(100vh - var(--topbar-h) - var(--toolbar-h) - var(--bottom-h) - var(--status-h));
+}
+html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);overflow:hidden;font-size:13px}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--surface)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+button{font-family:inherit;cursor:pointer;border:none;outline:none}
+input,select{font-family:inherit;outline:none}
+
+/* AUTH OVERLAY */
+#authOverlay{position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;align-items:center;justify-content:center;transition:opacity .5s}
+#authOverlay.hidden{opacity:0;pointer-events:none}
+.auth-card{width:420px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px;box-shadow:var(--glow)}
+.auth-card h1{font-size:28px;font-weight:800;background:var(--accent-g);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;margin-bottom:4px}
+.auth-card p{text-align:center;color:var(--text2);margin-bottom:24px;font-size:13px}
+.auth-input{display:block;width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);margin-bottom:12px;font-size:13px;transition:border-color .2s}
+.auth-input:focus{border-color:var(--accent)}
+.auth-btn{width:100%;padding:11px;border-radius:var(--radius);font-weight:600;font-size:14px;transition:all .2s;margin-bottom:10px}
+.auth-btn.primary{background:var(--accent-g);color:#fff}.auth-btn.primary:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(99,102,241,.4)}
+.auth-btn.social{background:var(--surface2);color:var(--text);border:1px solid var(--border)}.auth-btn.social:hover{border-color:var(--accent)}
+.auth-divider{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--text2);font-size:12px}.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.auth-footer{text-align:center;margin-top:16px;color:var(--text2);font-size:12px}.auth-footer a{color:var(--accent2);cursor:pointer}
+
+/* MAIN APP */
+#app{display:none;height:100vh;flex-direction:column}
+#app.active{display:flex}
+
+/* TOP BAR */
+.topbar{height:var(--topbar-h);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:6px;flex-shrink:0;overflow:hidden}
+.topbar .logo{font-weight:800;font-size:15px;background:var(--accent-g);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-right:8px;white-space:nowrap;flex-shrink:0}
+.topbar .menu-group{display:flex;gap:2px;flex-shrink:0}
+.topbar .menu-item{padding:4px 8px;color:var(--text2);font-size:11px;border-radius:4px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.topbar .menu-item:hover{background:var(--surface2);color:var(--text)}
+.topbar .spacer{flex:1;min-width:8px}
+.topbar .right-group{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.topbar .user-badge{display:flex;align-items:center;gap:6px;padding:4px 10px;background:var(--surface2);border-radius:20px;font-size:11px;color:var(--text2);white-space:nowrap}
+.topbar .user-badge .avatar{width:20px;height:20px;border-radius:50%;background:var(--accent-g);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0}
+
+/* TOOLBAR — two rows: mode tabs + tool buttons */
+.toolbar{height:var(--toolbar-h);background:var(--surface2);border-bottom:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+.toolbar-row1{height:30px;display:flex;align-items:center;padding:0 8px;gap:2px;border-bottom:1px solid var(--border)}
+.toolbar-row2{height:30px;display:flex;align-items:center;padding:0 8px;gap:2px;overflow-x:auto;overflow-y:hidden}
+.toolbar-row2::-webkit-scrollbar{height:3px}
+.toolbar-row2::-webkit-scrollbar-thumb{background:var(--border)}
+.tool-btn{padding:4px 9px;color:var(--text2);font-size:11px;border-radius:4px;transition:all .15s;background:transparent;white-space:nowrap;flex-shrink:0}
+.tool-btn:hover{background:var(--surface3);color:var(--text)}
+.tool-btn.active{background:var(--accent);color:#fff}
+.tool-sep{width:1px;height:18px;background:var(--border);margin:0 3px;flex-shrink:0}
+.mode-tab{padding:4px 12px;color:var(--text2);font-size:11px;font-weight:600;border-radius:4px;cursor:pointer;transition:all .15s;background:transparent;white-space:nowrap}
+.mode-tab:hover{color:var(--text)}.mode-tab.active{background:var(--accent);color:#fff}
+
+/* WORKSPACE */
+.workspace{flex:1;display:flex;overflow:hidden;height:var(--work-h)}
+
+/* LEFT PANEL */
+.left-panel{width:240px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.left-panel #leftContent{flex:1;overflow-y:auto}
+.panel-header{padding:8px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.tree-item{padding:5px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px;color:var(--text2);transition:all .1s;border-left:2px solid transparent}
+.tree-item:hover{background:var(--surface2);color:var(--text)}.tree-item.active{background:rgba(99,102,241,.1);color:var(--accent2);border-left-color:var(--accent)}
+.tree-item .icon{font-size:13px;width:16px;text-align:center}
+.tree-item.indent1{padding-left:26px}.tree-item.indent2{padding-left:42px}
+.tree-section{padding:8px 12px 3px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text2)}
+
+/* CENTER - VIEWPORT */
+.center-panel{flex:1;display:flex;flex-direction:column;position:relative;overflow:hidden}
+#viewport{flex:1;background:#08080e;cursor:crosshair;display:block}
+.viewport-overlay{position:absolute;pointer-events:none}
+.viewport-info{position:absolute;top:10px;left:10px;font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace;pointer-events:none}
+.viewport-info div{margin-bottom:2px}
+.axis-widget{position:absolute;bottom:12px;left:12px;width:80px;height:80px;pointer-events:none}
+.snap-indicator{position:absolute;top:10px;right:220px;padding:4px 10px;background:var(--accent);color:#fff;font-size:10px;font-weight:600;border-radius:4px;opacity:0;transition:opacity .2s;pointer-events:none}
+.view-controls{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:4px}
+.view-btn{width:32px;height:32px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
+.view-btn:hover{background:var(--surface2);color:var(--text);border-color:var(--accent)}
+
+/* RIGHT PANEL */
+.right-panel{width:260px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.right-panel #rightContent{flex:1;overflow-y:auto}
+.prop-group{padding:10px 12px;border-bottom:1px solid var(--border)}
+.prop-group h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);margin-bottom:8px}
+.prop-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-size:12px}
+.prop-row label{color:var(--text2);min-width:70px}
+.prop-input{width:100px;padding:4px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;font-family:'JetBrains Mono',monospace;text-align:right}
+.prop-input:focus{border-color:var(--accent)}
+.prop-slider{width:100px;accent-color:var(--accent)}
+.prop-badge{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.prop-badge.green{background:rgba(34,197,94,.15);color:var(--success)}
+.prop-badge.blue{background:rgba(99,102,241,.15);color:var(--accent2)}
+
+/* BOTTOM PANEL */
+.bottom-panel{height:var(--bottom-h);background:var(--surface);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+.bottom-tabs{display:flex;padding:0 8px;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
+.bottom-tabs::-webkit-scrollbar{height:0}
+.bottom-tab{padding:6px 14px;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
+.bottom-tab:hover{color:var(--text)}.bottom-tab.active{color:var(--accent2);border-bottom-color:var(--accent)}
+.bottom-content{flex:1;overflow-y:auto;padding:8px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)}
+.log-line{padding:2px 0;display:flex;gap:8px}.log-time{color:var(--text2);opacity:.5}.log-msg{color:var(--text2)}
+.log-line.info .log-msg{color:var(--cyan)}.log-line.warn .log-msg{color:var(--warn)}.log-line.success .log-msg{color:var(--success)}
+
+/* TIMELINE */
+.timeline-track{height:24px;background:var(--surface2);border-radius:4px;margin:6px 0;position:relative;overflow:hidden}
+.timeline-progress{height:100%;background:var(--accent-g);border-radius:4px;width:35%;transition:width .3s}
+.timeline-markers{display:flex;justify-content:space-between;font-size:9px;color:var(--text2);padding:0 4px}
+
+/* AI COPILOT */
+.copilot-toggle{position:fixed;right:20px;bottom:20px;width:48px;height:48px;border-radius:50%;background:var(--accent-g);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:100;box-shadow:0 4px 24px rgba(99,102,241,.4);transition:transform .2s}
+.copilot-toggle:hover{transform:scale(1.1)}
+.copilot-panel{position:fixed;right:20px;bottom:80px;width:360px;height:480px;background:var(--surface);border:1px solid var(--border);border-radius:16px;z-index:100;display:none;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.5)}
+.copilot-panel.open{display:flex}
+.copilot-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px}
+.copilot-header .dot{width:8px;height:8px;border-radius:50%;background:var(--success);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.copilot-msgs{flex:1;overflow-y:auto;padding:12px}
+.copilot-msg{padding:8px 12px;border-radius:10px;margin-bottom:8px;font-size:12px;max-width:85%;line-height:1.5}
+.copilot-msg.ai{background:var(--surface2);color:var(--text);border-bottom-left-radius:2px}
+.copilot-msg.user{background:var(--accent);color:#fff;margin-left:auto;border-bottom-right-radius:2px}
+.copilot-input-row{padding:10px;border-top:1px solid var(--border);display:flex;gap:6px}
+.copilot-input{flex:1;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px}
+.copilot-send{padding:8px 14px;background:var(--accent-g);color:#fff;border-radius:8px;font-weight:600;font-size:12px}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:none;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{width:500px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;box-shadow:0 16px 60px rgba(0,0,0,.5)}
+.modal h2{font-size:18px;font-weight:700;margin-bottom:16px}
+
+/* STATUS BAR */
+.statusbar{height:24px;background:var(--surface2);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:16px;font-size:10px;color:var(--text2);flex-shrink:0}
+.statusbar .dot{width:6px;height:6px;border-radius:50%;background:var(--success)}
+
+/* LOADING */
+#loadingScreen{position:fixed;inset:0;z-index:2000;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .6s}
+#loadingScreen.hidden{opacity:0;pointer-events:none}
+#loadingScreen h1{font-size:48px;font-weight:900;background:var(--accent-g);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
+#loadingScreen p{color:var(--text2);font-size:14px;margin-bottom:30px}
+.loader-bar{width:280px;height:3px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.loader-bar .fill{height:100%;background:var(--accent-g);border-radius:4px;animation:load 2s ease-in-out forwards}
+@keyframes load{0%{width:0}100%{width:100%}}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loadingScreen">
+<h1>⚡ AtlasForge</h1>
+<p>Initializing CAD Engine • Physics Solver • AI Systems</p>
+<div class="loader-bar"><div class="fill"></div></div>
+</div>
+
+<!-- AUTH -->
+<div id="authOverlay" class="hidden">
+<div class="auth-card">
+<h1>⚡ AtlasForge</h1>
+<p>Cloud Engineering Platform — CAD • Simulation • Robotics</p>
+<input class="auth-input" id="authEmail" placeholder="Email address" type="email">
+<input class="auth-input" id="authPass" placeholder="Password" type="password">
+<button class="auth-btn primary" onclick="doLogin()">Sign In</button>
+<div class="auth-divider">or continue with</div>
+<button class="auth-btn social" onclick="doLogin()">🔵 Google</button>
+<button class="auth-btn social" onclick="doLogin()">⚫ GitHub</button>
+<button class="auth-btn social" onclick="doLogin()">🏢 Institution SSO</button>
+<div class="auth-footer">No account? <a onclick="doLogin()">Create free workspace →</a></div>
+</div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+<!-- TOP BAR -->
+<div class="topbar">
+<span class="logo">⚡ AtlasForge</span>
+<div class="menu-group">
+<span class="menu-item">File</span>
+<span class="menu-item">Edit</span>
+<span class="menu-item">Insert</span>
+<span class="menu-item">Sketch</span>
+<span class="menu-item">Construct</span>
+<span class="menu-item">Assemble</span>
+<span class="menu-item">Simulate</span>
+<span class="menu-item">Robotics</span>
+<span class="menu-item">AI</span>
+</div>
+<span class="spacer"></span>
+<div class="right-group">
+<span class="menu-item" onclick="toggleModal('collab')">👥 Share</span>
+<span class="menu-item" onclick="toggleModal('subscription')">⭐ Pro</span>
+<div class="user-badge"><div class="avatar">U</div><span>user@atlas.io</span></div>
+</div>
+</div>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+<div class="toolbar-row1" id="modeTabsRow">
+<div class="mode-tab active" data-mode="cad" onclick="switchMode('cad')">CAD Design</div>
+<div class="mode-tab" data-mode="assembly" onclick="switchMode('assembly')">Assembly</div>
+<div class="mode-tab" data-mode="simulate" onclick="switchMode('simulate')">Simulate</div>
+<div class="mode-tab" data-mode="robotics" onclick="switchMode('robotics')">Robotics</div>
+<div class="mode-tab" data-mode="education" onclick="switchMode('education')">Learn</div>
+</div>
+<div class="toolbar-row2" id="toolbarItems"></div>
+</div>
+
+<!-- WORKSPACE -->
+<div class="workspace">
+<!-- LEFT -->
+<div class="left-panel">
+<div class="panel-header">Explorer</div>
+<div id="leftContent"></div>
+</div>
+<!-- CENTER -->
+<div class="center-panel">
+<div id="viewport"></div>
+<div class="viewport-info" id="vpInfo"></div>
+<div class="view-controls">
+<button class="view-btn" onclick="resetCam()" title="Reset View">⌂</button>
+<button class="view-btn" onclick="setCamView('top')" title="Top">T</button>
+<button class="view-btn" onclick="setCamView('front')" title="Front">F</button>
+<button class="view-btn" onclick="setCamView('right')" title="Right">R</button>
+<button class="view-btn" onclick="toggleWireframe()" title="Wireframe">W</button>
+<button class="view-btn" onclick="toggleGrid()" title="Grid">G</button>
+</div>
+</div>
+<!-- RIGHT -->
+<div class="right-panel">
+<div class="panel-header">Properties</div>
+<div id="rightContent"></div>
+</div>
+</div>
+
+<!-- BOTTOM -->
+<div class="bottom-panel">
+<div class="bottom-tabs">
+<div class="bottom-tab active" onclick="switchBottom('console')">Console</div>
+<div class="bottom-tab" onclick="switchBottom('timeline')">Timeline</div>
+<div class="bottom-tab" onclick="switchBottom('physics')">Physics Debug</div>
+<div class="bottom-tab" onclick="switchBottom('sensors')">Sensors</div>
+<div class="bottom-tab" onclick="switchBottom('control')">Control</div>
+</div>
+<div class="bottom-content" id="bottomContent"></div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="statusbar">
+<span class="dot"></span><span>Engine Ready</span>
+<span>|</span><span id="statusFps">60 FPS</span>
+<span>|</span><span id="statusPolys">Polygons: 0</span>
+<span>|</span><span id="statusMode">Mode: CAD Design</span>
+<span style="flex:1"></span>
+<span>GPU: WebGL 2.0</span><span>|</span><span>v0.1.0-alpha</span>
+</div>
+</div>
+
+<!-- AI COPILOT -->
+<button class="copilot-toggle" onclick="toggleCopilot()">🤖</button>
+<div class="copilot-panel" id="copilotPanel">
+<div class="copilot-header"><span class="dot"></span>Arena AI Copilot</div>
+<div class="copilot-msgs" id="copilotMsgs">
+<div class="copilot-msg ai">Hi! I'm your AI engineering assistant. I can help with CAD modeling, simulation setup, robotics configuration, and optimization. What would you like to build?</div>
+</div>
+<div class="copilot-input-row">
+<input class="copilot-input" id="copilotInput" placeholder="Ask AI assistant..." onkeydown="if(event.key==='Enter')sendCopilot()">
+<button class="copilot-send" onclick="sendCopilot()">Send</button>
+</div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-bg" id="modalCollab"><div class="modal"><h2>👥 Collaboration</h2><p style="color:var(--text2);margin-bottom:16px">Invite team members to your workspace for real-time collaboration.</p><input class="auth-input" placeholder="teammate@company.com"><button class="auth-btn primary" onclick="toggleModal('collab')">Send Invite</button><div style="margin-top:16px"><div class="tree-item"><span class="icon">👤</span>You (Owner) <span class="prop-badge green" style="margin-left:auto">Online</span></div></div><button class="auth-btn social" style="margin-top:12px" onclick="toggleModal('collab')">Close</button></div></div>
+<div class="modal-bg" id="modalSubscription"><div class="modal"><h2>⭐ Subscription Plans</h2><div style="display:flex;gap:12px;margin-top:16px"><div style="flex:1;padding:16px;background:var(--surface2);border-radius:12px;border:1px solid var(--border)"><h4 style="margin-bottom:8px">Free</h4><p style="color:var(--text2);font-size:11px;margin-bottom:12px">Basic CAD, limited sims</p><div style="font-size:24px;font-weight:800">$0</div></div><div style="flex:1;padding:16px;background:rgba(99,102,241,.1);border-radius:12px;border:1px solid var(--accent)"><h4 style="margin-bottom:8px">Pro ⚡</h4><p style="color:var(--text2);font-size:11px;margin-bottom:12px">Full sim, ROS, export</p><div style="font-size:24px;font-weight:800">$29<span style="font-size:12px;font-weight:400">/mo</span></div></div><div style="flex:1;padding:16px;background:var(--surface2);border-radius:12px;border:1px solid var(--border)"><h4 style="margin-bottom:8px">Enterprise</h4><p style="color:var(--text2);font-size:11px;margin-bottom:12px">Private cloud, GPU</p><div style="font-size:24px;font-weight:800">Custom</div></div></div><button class="auth-btn social" style="margin-top:16px" onclick="toggleModal('subscription')">Close</button></div></div>
+
+<script>
+/* ===== APP STATE ===== */
+const S={mode:'cad',tool:'select',wireframe:false,showGrid:true,physicsRunning:false,simTime:0,logs:[],objects:[],selectedObj:null,copilotOpen:false,polyCount:0};
+const toolsets={
+cad:[['Select','select'],['Sketch','sketch'],['|'],['Extrude','extrude'],['Revolve','revolve'],['Sweep','sweep'],['Loft','loft'],['|'],['Boolean','boolean'],['Fillet','fillet'],['Chamfer','chamfer'],['Shell','shell'],['Mirror','mirror'],['Pattern','pattern'],['|'],['Measure','measure']],
+assembly:[['Select','select'],['|'],['Rigid Joint','rigid'],['Revolute','revolute'],['Slider','slider'],['Ball','ball'],['Cylindrical','cylindrical'],['|'],['Explode','explode'],['Mass Calc','mass']],
+simulate:[['Play ▶','play'],['Pause ⏸','pause'],['Reset ↺','reset'],['|'],['Gravity','gravity'],['Material','material'],['|'],['Force','force'],['Torque','torque'],['Motor','motor'],['|'],['Earth 🌍','earth'],['Moon 🌙','moon'],['Mars 🔴','mars']],
+robotics:[['Import URDF','urdf'],['Import SDF','sdf'],['|'],['PID','pid'],['Torque Ctrl','torquectrl'],['Vel Ctrl','velctrl'],['|'],['Camera','camera'],['LiDAR','lidar'],['IMU','imu'],['GPS','gps'],['|'],['FK','fk'],['IK','ik'],['Trajectory','trajectory']],
+education:[['Kinematics','kinematics'],['Dynamics','dynamics'],['Controls','controls'],['|'],['Tutorial','tutorial'],['Step Solver','solver'],['Equations','equations']]
+};
+
+/* ===== THREE.JS SCENE ===== */
+let scene,camera,renderer,gridHelper,raycaster,mouse,clock,animId;
+let robotArm={base:null,links:[],joints:[]};
+function initScene(){
+scene=new THREE.Scene();
+scene.background=new THREE.Color(0x08080e);
+scene.fog=new THREE.FogExp2(0x08080e,.015);
+camera=new THREE.PerspectiveCamera(50,1,.1,1000);
+camera.position.set(8,6,8);camera.lookAt(0,0,0);
+renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.2;
+const vp=document.getElementById('viewport');
+vp.appendChild(renderer.domElement);
+resizeRenderer();
+
+// Lights
+const amb=new THREE.AmbientLight(0x334466,.6);scene.add(amb);
+const dir=new THREE.DirectionalLight(0xffffff,.8);dir.position.set(10,15,10);dir.castShadow=true;dir.shadow.mapSize.set(2048,2048);scene.add(dir);
+const pt=new THREE.PointLight(0x6366f1,.5,30);pt.position.set(-5,8,-5);scene.add(pt);
+const pt2=new THREE.PointLight(0xa855f7,.3,25);pt2.position.set(5,3,5);scene.add(pt2);
+
+// Grid
+gridHelper=new THREE.GridHelper(20,40,0x1a1a2e,0x1a1a2e);scene.add(gridHelper);
+const axH=new THREE.AxesHelper(2);scene.add(axH);
+
+// Ground
+const gnd=new THREE.Mesh(new THREE.PlaneGeometry(40,40),new THREE.MeshStandardMaterial({color:0x0a0a14,roughness:.95}));
+gnd.rotation.x=-Math.PI/2;gnd.position.y=-.01;gnd.receiveShadow=true;scene.add(gnd);
+
+raycaster=new THREE.Raycaster();mouse=new THREE.Vector2();clock=new THREE.Clock();
+
+// Camera controls (simple orbit)
+let isDrag=false,prevM={x:0,y:0},camTheta=Math.PI/4,camPhi=Math.PI/6,camDist=14,camTarget=new THREE.Vector3(0,1,0);
+function updateCam(){
+camera.position.x=camTarget.x+camDist*Math.cos(camPhi)*Math.sin(camTheta);
+camera.position.y=camTarget.y+camDist*Math.sin(camPhi);
+camera.position.z=camTarget.z+camDist*Math.cos(camPhi)*Math.cos(camTheta);
+camera.lookAt(camTarget);}
+updateCam();
+const cv=renderer.domElement;
+cv.addEventListener('mousedown',e=>{isDrag=true;prevM={x:e.clientX,y:e.clientY}});
+cv.addEventListener('mousemove',e=>{if(!isDrag)return;const dx=e.clientX-prevM.x,dy=e.clientY-prevM.y;camTheta-=dx*.005;camPhi+=dy*.005;camPhi=Math.max(-.4,Math.min(1.4,camPhi));prevM={x:e.clientX,y:e.clientY};updateCam()});
+cv.addEventListener('mouseup',()=>isDrag=false);cv.addEventListener('mouseleave',()=>isDrag=false);
+cv.addEventListener('wheel',e=>{camDist+=e.deltaY*.01;camDist=Math.max(3,Math.min(40,camDist));updateCam()});
+window.resetCam=()=>{camTheta=Math.PI/4;camPhi=Math.PI/6;camDist=14;updateCam()};
+window.setCamView=v=>{if(v==='top'){camTheta=0;camPhi=1.5;camDist=12}else if(v==='front'){camTheta=0;camPhi=0;camDist=12}else{camTheta=Math.PI/2;camPhi=0;camDist=12}updateCam()};
+
+buildDefaultScene();animate();
+}
+
+/* ===== DEFAULT SCENE ===== */
+function buildDefaultScene(){
+const mat1=new THREE.MeshStandardMaterial({color:0x6366f1,roughness:.3,metalness:.7});
+const mat2=new THREE.MeshStandardMaterial({color:0x22c55e,roughness:.4,metalness:.5});
+const mat3=new THREE.MeshStandardMaterial({color:0xf59e0b,roughness:.3,metalness:.6});
+const mat4=new THREE.MeshStandardMaterial({color:0xa855f7,roughness:.35,metalness:.6});
+const matGray=new THREE.MeshStandardMaterial({color:0x444466,roughness:.5,metalness:.8});
+
+// Robot base
+const base=new THREE.Mesh(new THREE.CylinderGeometry(.8,.9,.3,32),matGray);base.position.y=.15;base.castShadow=true;scene.add(base);
+const link1=new THREE.Mesh(new THREE.BoxGeometry(.3,2,.3),mat1);link1.position.set(0,1.3,0);link1.castShadow=true;scene.add(link1);
+const joint1=new THREE.Mesh(new THREE.SphereGeometry(.2,16,16),mat3);joint1.position.set(0,2.3,0);joint1.castShadow=true;scene.add(joint1);
+const link2=new THREE.Mesh(new THREE.BoxGeometry(.25,1.5,.25),mat2);link2.position.set(0,3.1,0);link2.castShadow=true;scene.add(link2);
+const joint2=new THREE.Mesh(new THREE.SphereGeometry(.18,16,16),mat3);joint2.position.set(0,3.85,0);joint2.castShadow=true;scene.add(joint2);
+const link3=new THREE.Mesh(new THREE.BoxGeometry(.2,1,.2),mat4);link3.position.set(0,4.4,0);link3.castShadow=true;scene.add(link3);
+const ee=new THREE.Mesh(new THREE.ConeGeometry(.15,.4,8),mat3);ee.position.set(0,5.1,0);ee.rotation.x=Math.PI;ee.castShadow=true;scene.add(ee);
+
+robotArm={base,links:[link1,link2,link3],joints:[joint1,joint2],ee};
+S.objects=[base,link1,link2,link3,joint1,joint2,ee];
+S.polyCount=S.objects.reduce((a,o)=>a+(o.geometry?o.geometry.attributes.position.count/3:0),0);
+
+// Some extra geometry
+const box=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial({color:0x3b82f6,roughness:.4,metalness:.5}));
+box.position.set(4,0.5,-2);box.castShadow=true;scene.add(box);S.objects.push(box);
+const cyl=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,1.5,24),new THREE.MeshStandardMaterial({color:0xec4899,roughness:.3,metalness:.6}));
+cyl.position.set(-3,0.75,2);cyl.castShadow=true;scene.add(cyl);S.objects.push(cyl);
+const sph=new THREE.Mesh(new THREE.SphereGeometry(.6,32,32),new THREE.MeshStandardMaterial({color:0x06b6d4,roughness:.2,metalness:.7}));
+sph.position.set(2,0.6,3);sph.castShadow=true;scene.add(sph);S.objects.push(sph);
+
+S.polyCount=S.objects.reduce((a,o)=>a+(o.geometry?o.geometry.attributes.position.count/3:0),0);
+addLog('success','Scene initialized — Robot arm + primitives loaded');
+addLog('info','Physics engine: Bullet (WebAssembly) — Ready');
+addLog('info','CAD Kernel: OpenCascade WASM — Ready');
+}
+
+/* ===== ANIMATION ===== */
+function animate(){
+animId=requestAnimationFrame(animate);
+const t=clock.getElapsedTime();
+// Animate robot arm
+if(robotArm.links[0]){
+const a1=Math.sin(t*.8)*.3;
+const a2=Math.sin(t*.6+1)*.4;
+robotArm.links[0].rotation.z=a1;
+robotArm.joints[0].position.x=Math.sin(a1)*2;
+robotArm.joints[0].position.y=2.3+Math.cos(a1)*.1;
+robotArm.links[1].rotation.z=a2;
+robotArm.ee.rotation.z=t*2;
+}
+if(S.physicsRunning)S.simTime+=1/60;
+renderer.render(scene,camera);
+document.getElementById('statusFps').textContent=Math.round(1/clock.getDelta())+' FPS';
+document.getElementById('statusPolys').textContent='Polygons: '+Math.round(S.polyCount);
+}
+
+/* ===== RESIZE ===== */
+function resizeRenderer(){
+const vp=document.getElementById('viewport');if(!vp||!renderer)return;
+const w=vp.clientWidth,h=vp.clientHeight;
+renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();
+}
+window.addEventListener('resize',resizeRenderer);
+
+/* ===== UI FUNCTIONS ===== */
+function switchMode(m){
+S.mode=m;
+document.querySelectorAll('.mode-tab').forEach(t=>t.classList.toggle('active',t.dataset.mode===m));
+document.getElementById('statusMode').textContent='Mode: '+{cad:'CAD Design',assembly:'Assembly',simulate:'Simulate',robotics:'Robotics',education:'Learn'}[m];
+renderToolbar();renderLeft();renderRight();
+addLog('info','Switched to '+m+' mode');
+}
+function renderToolbar(){
+const c=document.getElementById('toolbarItems');c.innerHTML='';
+(toolsets[S.mode]||[]).forEach(t=>{
+if(t[0]==='|'){const s=document.createElement('div');s.className='tool-sep';c.appendChild(s);return;}
+const b=document.createElement('button');b.className='tool-btn'+(S.tool===t[1]?' active':'');
+b.textContent=t[0];b.onclick=()=>{S.tool=t[1];renderToolbar();handleTool(t[1]);};c.appendChild(b);
+});
+}
+function renderLeft(){
+const c=document.getElementById('leftContent');
+const trees={
+cad:`<div class="tree-section">Feature Tree</div><div class="tree-item active"><span class="icon">📐</span>Origin</div><div class="tree-item"><span class="icon">✏️</span>Sketch 1</div><div class="tree-item indent1"><span class="icon">⬡</span>Rectangle</div><div class="tree-item indent1"><span class="icon">○</span>Circle</div><div class="tree-item"><span class="icon">🔺</span>Extrude 1</div><div class="tree-item"><span class="icon">🔄</span>Revolve 1</div><div class="tree-item"><span class="icon">⊞</span>Fillet 1</div><div class="tree-item"><span class="icon">🪞</span>Mirror 1</div><div class="tree-section">Constraints</div><div class="tree-item"><span class="icon">📏</span>Coincident (3)</div><div class="tree-item"><span class="icon">∥</span>Parallel (2)</div><div class="tree-item"><span class="icon">⊥</span>Perpendicular (1)</div><div class="tree-item"><span class="icon">↔</span>Distance: 50mm</div>`,
+assembly:`<div class="tree-section">Assembly Tree</div><div class="tree-item active"><span class="icon">📦</span>Robot Assembly</div><div class="tree-item indent1"><span class="icon">⚙️</span>Base (Fixed)</div><div class="tree-item indent1"><span class="icon">🔗</span>Link 1</div><div class="tree-item indent2"><span class="icon">🔄</span>Revolute Joint 1</div><div class="tree-item indent1"><span class="icon">🔗</span>Link 2</div><div class="tree-item indent2"><span class="icon">🔄</span>Revolute Joint 2</div><div class="tree-item indent1"><span class="icon">🔗</span>Link 3</div><div class="tree-item indent1"><span class="icon">🎯</span>End Effector</div><div class="tree-section">Joints</div><div class="tree-item"><span class="icon">🔵</span>J1: Revolute [-180°, 180°]</div><div class="tree-item"><span class="icon">🔵</span>J2: Revolute [-90°, 90°]</div>`,
+simulate:`<div class="tree-section">Physics World</div><div class="tree-item active"><span class="icon">🌍</span>Environment: Earth</div><div class="tree-item"><span class="icon">⬇</span>Gravity: -9.81 m/s²</div><div class="tree-item"><span class="icon">⏱</span>Timestep: 1ms</div><div class="tree-section">Rigid Bodies</div><div class="tree-item"><span class="icon">📦</span>Base — 5.2 kg</div><div class="tree-item"><span class="icon">📦</span>Link 1 — 2.1 kg</div><div class="tree-item"><span class="icon">📦</span>Link 2 — 1.4 kg</div><div class="tree-item"><span class="icon">📦</span>Link 3 — 0.8 kg</div><div class="tree-section">Contacts</div><div class="tree-item"><span class="icon">💥</span>Base ↔ Ground</div><div class="tree-section">Forces</div><div class="tree-item"><span class="icon">➡️</span>Gravity</div><div class="tree-item"><span class="icon">🔄</span>Motor Torques</div>`,
+robotics:`<div class="tree-section">Robot Stack</div><div class="tree-item active"><span class="icon">🤖</span>3-DOF Arm (URDF)</div><div class="tree-item"><span class="icon">📡</span>ROS2 Bridge: Ready</div><div class="tree-section">Controllers</div><div class="tree-item"><span class="icon">🎛</span>Joint 1 PID</div><div class="tree-item"><span class="icon">🎛</span>Joint 2 PID</div><div class="tree-section">Sensors</div><div class="tree-item"><span class="icon">📷</span>Camera (640×480)</div><div class="tree-item"><span class="icon">📡</span>LiDAR (360°)</div><div class="tree-item"><span class="icon">📊</span>IMU (6-axis)</div><div class="tree-item"><span class="icon">📍</span>GPS</div><div class="tree-section">Kinematics</div><div class="tree-item"><span class="icon">➡</span>Forward Kinematics</div><div class="tree-item"><span class="icon">⬅</span>Inverse Kinematics</div><div class="tree-item"><span class="icon">〰</span>Trajectory Planner</div>`,
+education:`<div class="tree-section">Modules</div><div class="tree-item active"><span class="icon">📖</span>Kinematics Basics</div><div class="tree-item"><span class="icon">📖</span>DH Parameters</div><div class="tree-item"><span class="icon">📖</span>Jacobian Matrix</div><div class="tree-item"><span class="icon">📖</span>Dynamics (Newton-Euler)</div><div class="tree-item"><span class="icon">📖</span>PID Control</div><div class="tree-item"><span class="icon">📖</span>Trajectory Planning</div><div class="tree-section">Exercises</div><div class="tree-item"><span class="icon">✅</span>FK of 2R Robot</div><div class="tree-item"><span class="icon">⬜</span>IK of 3R Robot</div><div class="tree-item"><span class="icon">⬜</span>PID Tuning Lab</div>`
+};
+c.innerHTML=trees[S.mode]||'';
+}
+function renderRight(){
+const c=document.getElementById('rightContent');
+const panels={
+cad:`<div class="prop-group"><h4>Transform</h4><div class="prop-row"><label>X</label><input class="prop-input" value="0.00 mm"></div><div class="prop-row"><label>Y</label><input class="prop-input" value="0.00 mm"></div><div class="prop-row"><label>Z</label><input class="prop-input" value="0.00 mm"></div></div><div class="prop-group"><h4>Extrude Parameters</h4><div class="prop-row"><label>Distance</label><input class="prop-input" value="50.00 mm"></div><div class="prop-row"><label>Taper</label><input class="prop-input" value="0°"></div><div class="prop-row"><label>Direction</label><select class="prop-input"><option>One Side</option><option>Two Sides</option><option>Symmetric</option></select></div></div><div class="prop-group"><h4>Material</h4><div class="prop-row"><label>Type</label><span class="prop-badge blue">Aluminum 6061</span></div><div class="prop-row"><label>Density</label><input class="prop-input" value="2700 kg/m³"></div><div class="prop-row"><label>Yield</label><input class="prop-input" value="276 MPa"></div></div><div class="prop-group"><h4>Mesh Quality</h4><div class="prop-row"><label>Detail</label><input type="range" class="prop-slider" min="1" max="10" value="7"></div></div>`,
+assembly:`<div class="prop-group"><h4>Joint Properties</h4><div class="prop-row"><label>Type</label><span class="prop-badge blue">Revolute</span></div><div class="prop-row"><label>Axis</label><input class="prop-input" value="Z"></div><div class="prop-row"><label>Min Angle</label><input class="prop-input" value="-180°"></div><div class="prop-row"><label>Max Angle</label><input class="prop-input" value="180°"></div><div class="prop-row"><label>Damping</label><input class="prop-input" value="0.1"></div></div><div class="prop-group"><h4>Mass Properties</h4><div class="prop-row"><label>Total Mass</label><input class="prop-input" value="9.5 kg"></div><div class="prop-row"><label>CoM X</label><input class="prop-input" value="0.02 m"></div><div class="prop-row"><label>CoM Y</label><input class="prop-input" value="1.84 m"></div><div class="prop-row"><label>Ixx</label><input class="prop-input" value="0.45 kg·m²"></div></div>`,
+simulate:`<div class="prop-group"><h4>Simulation</h4><div class="prop-row"><label>Status</label><span class="prop-badge green">${S.physicsRunning?'Running':'Stopped'}</span></div><div class="prop-row"><label>Time</label><input class="prop-input" value="${S.simTime.toFixed(2)} s" readonly></div><div class="prop-row"><label>Step Size</label><input class="prop-input" value="0.001 s"></div><div class="prop-row"><label>Solver</label><select class="prop-input"><option>Bullet</option><option>PhysX</option><option>MuJoCo</option></select></div></div><div class="prop-group"><h4>Environment</h4><div class="prop-row"><label>Gravity</label><input class="prop-input" value="-9.81 m/s²"></div><div class="prop-row"><label>Air Density</label><input class="prop-input" value="1.225 kg/m³"></div><div class="prop-row"><label>Friction μ</label><input class="prop-input" value="0.6"></div><div class="prop-row"><label>Restitution</label><input class="prop-input" value="0.3"></div></div><div class="prop-group"><h4>Contact</h4><div class="prop-row"><label>Contacts</label><input class="prop-input" value="3" readonly></div><div class="prop-row"><label>Penetration</label><input class="prop-input" value="0.00 mm" readonly></div></div>`,
+robotics:`<div class="prop-group"><h4>Robot Config</h4><div class="prop-row"><label>Model</label><span class="prop-badge blue">3-DOF Arm</span></div><div class="prop-row"><label>DOF</label><input class="prop-input" value="3"></div><div class="prop-row"><label>Format</label><select class="prop-input"><option>URDF</option><option>SDF</option></select></div></div><div class="prop-group"><h4>PID Controller — J1</h4><div class="prop-row"><label>Kp</label><input class="prop-input" value="100.0"></div><div class="prop-row"><label>Ki</label><input class="prop-input" value="1.0"></div><div class="prop-row"><label>Kd</label><input class="prop-input" value="10.0"></div><div class="prop-row"><label>Target</label><input class="prop-input" value="45.0°"></div></div><div class="prop-group"><h4>End Effector</h4><div class="prop-row"><label>X</label><input class="prop-input" value="0.12 m"></div><div class="prop-row"><label>Y</label><input class="prop-input" value="4.92 m"></div><div class="prop-row"><label>Z</label><input class="prop-input" value="0.00 m"></div></div>`,
+education:`<div class="prop-group"><h4>Forward Kinematics</h4><p style="color:var(--text2);font-size:11px;margin-bottom:8px;line-height:1.6">The position of the end-effector is computed using DH parameters and transformation matrices.</p><div style="background:var(--surface2);padding:10px;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--cyan);margin-bottom:8px">T = A₁(θ₁)·A₂(θ₂)·A₃(θ₃)</div><div class="prop-row"><label>θ₁</label><input type="range" class="prop-slider" min="-180" max="180" value="30"></div><div class="prop-row"><label>θ₂</label><input type="range" class="prop-slider" min="-90" max="90" value="15"></div><div class="prop-row"><label>θ₃</label><input type="range" class="prop-slider" min="-90" max="90" value="-10"></div></div>`
+};
+c.innerHTML=panels[S.mode]||'';
+}
+function switchBottom(tab){
+document.querySelectorAll('.bottom-tab').forEach(t=>t.classList.toggle('active',t.textContent.toLowerCase().includes(tab)));
+const c=document.getElementById('bottomContent');
+if(tab==='console'){c.innerHTML='';S.logs.forEach(l=>{c.innerHTML+=`<div class="log-line ${l.t}"><span class="log-time">${l.ts}</span><span class="log-msg">${l.m}</span></div>`;});}
+else if(tab==='timeline'){c.innerHTML=`<div class="timeline-track"><div class="timeline-progress"></div></div><div class="timeline-markers"><span>0.0s</span><span>1.0s</span><span>2.0s</span><span>3.0s</span><span>4.0s</span><span>5.0s</span></div><p style="margin-top:8px">Simulation timeline — Drag to scrub through physics playback</p>`;}
+else if(tab==='physics'){c.innerHTML=`<div style="display:flex;gap:24px"><div><strong style="color:var(--accent2)">Rigid Bodies:</strong> 7<br><strong style="color:var(--accent2)">Contacts:</strong> 3<br><strong style="color:var(--accent2)">Constraints:</strong> 2</div><div><strong style="color:var(--warn)">Forces:</strong><br>Gravity: [0, -9.81, 0]<br>Motor J1: 12.4 Nm<br>Motor J2: 8.1 Nm</div><div><strong style="color:var(--success)">Energy:</strong><br>KE: 2.34 J<br>PE: 45.12 J<br>Total: 47.46 J</div></div>`;}
+else if(tab==='sensors'){c.innerHTML=`<div style="display:flex;gap:16px"><div style="flex:1"><strong style="color:var(--cyan)">Camera</strong><div style="width:100%;height:80px;background:var(--surface2);border-radius:4px;margin-top:4px;display:flex;align-items:center;justify-content:center;color:var(--text2)">640×480 RGB Feed</div></div><div style="flex:1"><strong style="color:var(--cyan)">LiDAR</strong><div style="width:100%;height:80px;background:var(--surface2);border-radius:4px;margin-top:4px;display:flex;align-items:center;justify-content:center;color:var(--text2)">360° Point Cloud</div></div><div style="flex:1"><strong style="color:var(--cyan)">IMU</strong><br><span style="font-family:'JetBrains Mono',monospace;font-size:10px">Acc: [0.02, 9.78, 0.01]<br>Gyr: [0.00, 0.01, 0.00]</span></div></div>`;}
+else if(tab==='control'){c.innerHTML=`<div style="display:flex;gap:16px"><div style="flex:1"><strong style="color:var(--accent2)">MPC Controller</strong><div style="margin-top:4px;font-size:11px;color:var(--text2)">Horizon: 20 steps<br>Cost: 0.042<br>Status: <span style="color:var(--success)">Converged</span></div></div><div style="flex:1"><strong style="color:var(--accent2)">Waypoints</strong><div style="margin-top:4px;font-size:11px;color:var(--text2)">WP1: [0,0,0] ✅<br>WP2: [1,2,0] ⏳<br>WP3: [2,1,1] ⬜</div></div><div style="flex:1"><strong style="color:var(--accent2)">SLAM</strong><div style="margin-top:4px;font-size:11px;color:var(--text2)">Map Points: 1,247<br>Loop Closures: 3<br>Drift: 0.02m</div></div></div>`;}
+}
+function handleTool(t){
+const msgs={extrude:'Select a face or sketch profile to extrude',revolve:'Select an axis and profile to revolve',boolean:'Select two bodies for boolean operation',fillet:'Select edges to fillet',play:'Starting physics simulation...',pause:'Physics simulation paused',reset:'Simulation reset to t=0',urdf:'Select a URDF file to import robot model',fk:'Computing forward kinematics...',ik:'Computing inverse kinematics...',trajectory:'Open trajectory planner'};
+if(msgs[t])addLog('info',msgs[t]);
+if(t==='play'){S.physicsRunning=true;renderRight();}
+if(t==='pause'){S.physicsRunning=false;renderRight();}
+if(t==='reset'){S.physicsRunning=false;S.simTime=0;renderRight();}
+}
+function addLog(type,msg){
+const ts=new Date().toLocaleTimeString();S.logs.push({t:type,ts,m:msg});
+const c=document.getElementById('bottomContent');if(c)c.innerHTML+=`<div class="log-line ${type}"><span class="log-time">${ts}</span><span class="log-msg">${msg}</span></div>`;
+}
+function toggleWireframe(){
+S.wireframe=!S.wireframe;
+S.objects.forEach(o=>{if(o.material)o.material.wireframe=S.wireframe;});
+addLog('info','Wireframe: '+(S.wireframe?'ON':'OFF'));
+}
+function toggleGrid(){S.showGrid=!S.showGrid;if(gridHelper)gridHelper.visible=S.showGrid;}
+function toggleModal(name){
+const el=document.getElementById('modal'+name.charAt(0).toUpperCase()+name.slice(1));
+if(el)el.classList.toggle('open');
+}
+function toggleCopilot(){
+S.copilotOpen=!S.copilotOpen;
+document.getElementById('copilotPanel').classList.toggle('open',S.copilotOpen);
+}
+function sendCopilot(){
+const inp=document.getElementById('copilotInput');const msg=inp.value.trim();if(!msg)return;
+const mc=document.getElementById('copilotMsgs');
+mc.innerHTML+=`<div class="copilot-msg user">${msg}</div>`;inp.value='';
+setTimeout(()=>{
+const responses=['I can help with that! Let me analyze the current model and suggest optimizations.','Based on your robot configuration, I recommend adjusting the PID gains: Kp=120, Ki=0.5, Kd=15 for smoother motion.','I\'ve detected a potential singularity at θ₂=90°. Consider adding a joint limit constraint.','The current mass distribution suggests moving the center of mass 2cm forward for better stability.','I can generate a URDF file from your current assembly. Shall I proceed?','Your trajectory has a maximum acceleration of 5.2 rad/s². This is within the motor limits.'];
+mc.innerHTML+=`<div class="copilot-msg ai">${responses[Math.floor(Math.random()*responses.length)]}</div>`;
+mc.scrollTop=mc.scrollHeight;
+},800);
+}
+
+/* ===== INIT ===== */
+setTimeout(()=>{document.getElementById('loadingScreen').classList.add('hidden');document.getElementById('authOverlay').classList.remove('hidden');},2200);
+function doLogin(){
+document.getElementById('authOverlay').classList.add('hidden');
+document.getElementById('app').classList.add('active');
+setTimeout(()=>{initScene();renderToolbar();renderLeft();renderRight();switchBottom('console');
+addLog('success','Welcome to AtlasForge v0.1.0-alpha');
+addLog('info','Workspace: Default Project');
+addLog('info','ROS2 Bridge: Connected (localhost:9090)');
+addLog('info','GPU: WebGL 2.0 — Hardware Accelerated');
+},100);
+}
+document.getElementById('vpInfo').innerHTML='<div>AtlasForge Engine v0.1</div><div>WebGL 2.0 | Three.js r128</div>';
+</script>
+</body>
+</html>
